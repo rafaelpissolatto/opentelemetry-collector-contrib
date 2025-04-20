@@ -11,10 +11,12 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ecs"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/zap"
 )
@@ -60,6 +62,7 @@ type taskFetcherOptions struct {
 	Logger            *zap.Logger
 	Cluster           string
 	Region            string
+	RoleARN           string
 	serviceNameFilter serviceNameFilter
 
 	// test overrides
@@ -76,6 +79,7 @@ func newTaskFetcherFromConfig(cfg Config, logger *zap.Logger) (*taskFetcher, err
 		Logger:            logger,
 		Region:            cfg.ClusterRegion,
 		Cluster:           cfg.ClusterName,
+		RoleARN:           cfg.RoleARN,
 		serviceNameFilter: svcNameFilter,
 	})
 }
@@ -118,7 +122,36 @@ func newTaskFetcher(opts taskFetcherOptions) (*taskFetcher, error) {
 	}
 	logger.Debug("Init TaskFetcher", zap.String("Region", opts.Region), zap.String("Cluster", opts.Cluster))
 	awsCfg := aws.NewConfig().WithRegion(opts.Region).WithCredentialsChainVerboseErrors(true)
-	sess, err := session.NewSession(awsCfg)
+
+	// When RoleARN is defined we assume the caller is using STS to assume a role
+	// This is the case for ECS task running outside of the cluster.
+	var sess *session.Session
+	if opts.RoleARN != "" {
+		stsSess, err := session.NewSession(awsCfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create sts session: %w", err)
+		}
+		stsClient := sts.New(stsSess)
+
+		// Assume the role
+		assumeRoleOutput, err := stsClient.AssumeRole(&sts.AssumeRoleInput{
+			RoleArn:         aws.String(opts.RoleARN),
+			RoleSessionName: aws.String("ecs-observer"),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to assume role: %w", err)
+		}
+		// Create a new session with the assumed role credential
+		awsCfg = awsCfg.WithCredentials(
+			credentials.NewStaticCredentials(
+				aws.StringValue(assumeRoleOutput.Credentials.AccessKeyId),
+				aws.StringValue(assumeRoleOutput.Credentials.SecretAccessKey),
+				aws.StringValue(assumeRoleOutput.Credentials.SessionToken),
+			),
+		).WithRegion(opts.Region)
+	}
+
+	sess, err = session.NewSession(awsCfg)
 	if err != nil {
 		return nil, fmt.Errorf("create aws session failed: %w", err)
 	}

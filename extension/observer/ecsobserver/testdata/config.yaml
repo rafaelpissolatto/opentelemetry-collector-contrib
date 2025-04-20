@@ -5,6 +5,7 @@ ecs_observer/1:
 ecs_observer/2:
   cluster_name: 'ecs-sd-test-1'
   cluster_region: 'us-west-2'
+  role_arn: 'arn:aws:iam::123456789012:role/ecs-sd-test-1'
   result_file: '/etc/ecs_sd_targets.yaml'
   refresh_interval: 15s
   services:

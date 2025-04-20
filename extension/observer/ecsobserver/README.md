@@ -32,6 +32,7 @@ extensions:
     refresh_interval: 60s # format is https://golang.org/pkg/time/#ParseDuration
     cluster_name: 'Cluster-1' # cluster name need manual config
     cluster_region: 'us-west-2' # region can be configured directly or use AWS_REGION env var
+    role_arn: 'arn:aws:iam::123456789012:role/role_name' # optional, if not set, use default credential chain
     result_file: '/etc/ecs_sd_targets.yaml' # the directory for file must already exists
     services:
       - name_pattern: '^retail-.*$'

@@ -21,6 +21,9 @@ type Config struct {
 	ClusterName string `mapstructure:"cluster_name" yaml:"cluster_name"`
 	// ClusterRegion is the target ECS cluster's AWS region.
 	ClusterRegion string `mapstructure:"cluster_region" yaml:"cluster_region"`
+	// RoleARN is the optional IAM role ARN to assume for ECS API calls.
+	// This is useful when the ECS cluster is in a different AWS account or the collector is running outside of ECS Cluster.
+	RoleARN string `mapstructure:"role_arn" yaml:"role_arn"`
 	// RefreshInterval determines how frequency at which the observer
 	// needs to poll for collecting information about new processes.
 	RefreshInterval time.Duration `mapstructure:"refresh_interval" yaml:"refresh_interval"`
@@ -86,6 +89,7 @@ func exampleConfig() *Config {
 	return &Config{
 		ClusterName:     "ecs-sd-test-1",
 		ClusterRegion:   "us-west-2",
+		RoleARN:         "arn:aws:iam::123456789012:role/ecs-sd-test-1",
 		ResultFile:      "/etc/ecs_sd_targets.yaml",
 		RefreshInterval: 15 * time.Second,
 		JobLabelName:    defaultJobLabelName,
